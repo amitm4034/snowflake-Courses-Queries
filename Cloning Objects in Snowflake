@@ -1,0 +1,73 @@
+/*
+Cloning 
+
+Creates a copy of existing databases,schemas and non-temporary tables in the system.
+creates a derived copy of that object which initally shares the underlying storage.
+useful for creating instant backups that do not incur any additional costs
+Cloning does not affect the original tables.
+Cloning on temporary objects does not work.
+*/
+
+-- Clone a database and all objects within the database at its current state:
+
+create or replace database demodb_clone clone demodb;
+
+--Clone a schema and all objects within the schema at its current state:
+
+create schema employee_perm_clone clone employee_perm;
+
+
+-- Clone a table at its current state:
+
+create table employees_clone clone demo_db.public.employees;
+
+create table employees_transient_clone clone demo_db.employee_perm.employees_transient;
+
+create transient table employees_transient_clone clone demo_db.employee_perm.employees_transient;
+
+create table employees_temp_clone clone demo_db.employee_perm.employees_temp;
+
+create temporary table employees_temp_clone clone demo_db.employee_perm.employees_temp;
+
+create transient table employees_temp_clone_trans clone demo_db.employee_perm.employees_temp;
+
+
+/*
+Every Snowflake table has an ID that uniquely identifies the table.
+In addition, every table is also associated with a CLONE_GROUP_ID. If a table has no clones, then the ID and CLONE_GROUP_ID are identical. 
+These IDs are displayed in the TABLE_STORAGE_METRICS view
+*/
+
+SELECT * FROM INFORMATION_SCHEMA.TABLE_STORAGE_METRICS WHERE TABLE_NAME = 'EMPLOYEES'
+AND TABLE_CATALOG='DEMO_DB' AND TABLE_SCHEMA = 'PUBLIC' AND TABLE_DROPPED IS NULL AND SCHEMA_DROPPED IS NULL;
+
+SELECT * FROM INFORMATION_SCHEMA.TABLE_STORAGE_METRICS WHERE TABLE_NAME = 'EMPLOYEES_CONSUMER'
+AND TABLE_CATALOG='DEMO_DB' AND TABLE_SCHEMA = 'PUBLIC' AND TABLE_DROPPED IS NULL AND SCHEMA_DROPPED IS NULL;
+
+SELECT * FROM INFORMATION_SCHEMA.TABLE_STORAGE_METRICS WHERE TABLE_NAME LIKE 'EMPLOYEES_CLONE'
+AND TABLE_CATALOG='DEMO_DB' AND TABLE_SCHEMA = 'PUBLIC' AND TABLE_DROPPED IS NULL AND SCHEMA_DROPPED IS NULL;
+
+
+
+-- CLONE HISTORICAL OBJECTS
+
+-- create a duplicate of the object at a specified point in the object’s history
+
+select current_timestamp();
+
+
+-- following CREATE TABLE command creates a clone of a table as of the date and time represented by the specified timestamp:
+create table restored_table clone employees
+  at(timestamp => '2020-09-10 21:06:16.694 +0000'::timestamp);
+  
+-- following CREATE SCHEMA command creates a clone of a schema and all its objects as they existed 1 hour before the current time:
+create schema restored_schema clone employee_perm at(offset => -600);
+
+-- following CREATE DATABASE command creates a clone of a database and all its objects as they existed prior to the completion of the specified statement:
+create database restored_db clone demo_db
+  before(statement => '0196d7b8-00d6-37a7-0000-45750002d1ce');
+  
+  -- Swap tables
+-- It do not swap the underline storage rather it just changes the metadata reference of tables.
+
+ALTER TABLE employees SWAP WITH employees_consumer;

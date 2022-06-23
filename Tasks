@@ -1,0 +1,113 @@
+/* Task :
+
+A Task is a kind of trigger which gets executed at a specific time/period
+It can execute a single SQL statement , or can make a call to a stored procedure.
+
+*/
+
+
+
+
+CREATE TABLE EMPLOYEES(EMPLOYEE_ID INTEGER AUTOINCREMENT START = 1 INCREMENT = 1,
+                       EMPLOYEE_NAME VARCHAR DEFAULT 'KASHISH',
+                       LOAD_TIME DATE);
+
+
+---Creating Standalone Tasks
+
+CREATE OR REPLACE TASK EMPLOYEES_TASK
+  WAREHOUSE = COMPUTE_WH
+  SCHEDULE = '1 MINUTE'
+AS
+ INSERT INTO EMPLOYEES(LOAD_TIME) VALUES(CURRENT_TIMESTAMP);
+ 
+
+SHOW TASKS;
+
+
+ALTER TASK EMPLOYEES_TASK RESUME;   --- Resume Task
+ALTER TASK EMPLOYEES_TASK SUSPEND;  --- Suspend Task
+
+Tree of Tasks
+
+-- First Copy of Employees table
+CREATE TABLE EMPLOYEES_COPY(EMPLOYEE_ID INTEGER,
+                       EMPLOYEE_NAME VARCHAR,
+                       LOAD_TIME DATE);
+
+CREATE OR REPLACE TASK EMPLOYEES_COPY_TASK
+  WAREHOUSE = COMPUTE_WH
+  AFTER EMPLOYEES_TASK
+AS
+INSERT INTO EMPLOYEES_COPY(EMPLOYEE_ID, EMPLOYEE_NAME, LOAD_TIME) SELECT * FROM EMPLOYEES;
+
+
+-- Second Copy of Employees table
+CREATE TABLE EMPLOYEES_COPY2(EMPLOYEE_ID INTEGER,
+                       EMPLOYEE_NAME VARCHAR,
+                       LOAD_TIME DATE);
+
+CREATE or replace TASK EMPLOYEES_COPY_TASK2
+  WAREHOUSE = COMPUTE_WH
+  AFTER EMPLOYEES_TASK
+AS
+INSERT INTO EMPLOYEES_COPY2(EMPLOYEE_ID, EMPLOYEE_NAME, LOAD_TIME) SELECT * FROM EMPLOYEES;
+
+ALTER TASK EMPLOYEES_TASK RESUME;
+ALTER TASK EMPLOYEES_COPY_TASK RESUME;
+ALTER TASK EMPLOYEES_COPY_TASK2 RESUME;
+
+ALTER TASK EMPLOYEES_TASK SUSPEND;
+ALTER TASK EMPLOYEES_COPY_TASK SUSPEND;
+ALTER TASK EMPLOYEES_COPY_TASK2 SUSPEND;
+
+
+truncate table employees;
+
+Calling a Stored Procedure
+
+-- Stored procedure that INSERTS data TO a table
+-- The INSERT statement in the stored procedure COPIES data to EMPLOYEES table
+create or replace procedure load_employees_data(TODAY_DATE varchar)
+  returns string not null
+  language javascript
+  as
+  $$
+    var sql_command = 'INSERT INTO EMPLOYEES(LOAD_TIME) VALUES(:1);'
+    snowflake.execute(
+        { 
+        sqlText: sql_command, 
+        binds: [TODAY_DATE] 
+        }
+        ); 
+  return "SUCCEEDED"; 
+  $$;
+
+-- Task that calls the stored procedure every minute
+create or replace task employees_load_task
+  warehouse = COMPUTE_WH
+  schedule = '1 minute'
+as
+  call load_employees_data(CURRENT_TIMESTAMP);
+  
+-- Check Tasks History
+
+---- Retrieve the 100 most recent task executions (completed, still running, or scheduled in the future)
+select *
+  from table(information_schema.task_history())
+  order by scheduled_time;
+  
+---- Retrieve the execution history for tasks in the account within a specified 60 minute block of time within the past 7 days:
+select *
+  from table(information_schema.task_history(
+    scheduled_time_range_start=>to_timestamp_ltz('2020-09-08 11:00:00.000 -0700'),
+    scheduled_time_range_end=>to_timestamp_ltz('2020-09-08 12:00:00.000 -0700')));
+
+---- Retrieve the 10 most recent executions of a specified task (completed, still running, or scheduled in the future) scheduled within the last hour
+select *
+  from table(information_schema.task_history(
+    scheduled_time_range_start=>dateadd('hour',-1,current_timestamp()),
+    result_limit => 10,
+    task_name=>'employees_load_task'));
+
+  

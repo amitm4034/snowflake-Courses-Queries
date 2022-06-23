@@ -1,0 +1,53 @@
+File Formats Operations in Snowflake Database
+
+
+
+// Specifying file_format in Copy command
+COPY INTO OUR_FIRST_DB.PUBLIC.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format = (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails_error.csv') //---file format mentioned in copy command
+    ON_ERROR = 'SKIP_FILE_3'; 
+    
+   
+
+// Creating file format object
+CREATE OR REPLACE file format MANAGE_DB.file_formats.my_file_format;
+
+// See properties of file format object
+DESC file format MANAGE_DB.file_formats.my_file_format;
+
+
+// Using file format object in Copy command       
+COPY INTO OUR_FIRST_DB.PUBLIC.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format= (FORMAT_NAME=MANAGE_DB.file_formats.my_file_format)
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 
+
+
+// Altering file format object
+ALTER file format MANAGE_DB.file_formats.my_file_format
+    SET SKIP_HEADER = 1;
+    
+// Defining properties on creation of file format object   
+CREATE OR REPLACE file format MANAGE_DB.file_formats.my_file_format
+    TYPE=JSON,
+    TIME_FORMAT=AUTO;    
+    
+// See properties of file format object    
+DESC file format MANAGE_DB.file_formats.my_file_format;   
+
+
+// Altering the type of a file format is not possible
+ALTER file format MANAGE_DB.file_formats.my_file_format
+SET TYPE = CSV;
+
+
+
+// Overwriting properties of file format object      
+COPY INTO OUR_FIRST_DB.PUBLIC.ORDERS_EX
+    FROM  @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format = (FORMAT_NAME= MANAGE_DB.file_formats.my_file_format  field_delimiter = ',' skip_header=1 )
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 

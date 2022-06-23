@@ -1,8 +1,3 @@
----------------------- WORKING WITH ROW NUMBERS ----------------------
-/* 
--- Working with Row Numbers in snowflake is straight forward as in other Databases such as Oracle, MySQL, Postgres
--- We will learn two ways to generate row numbers for a table and then, will perform operations on it
-
 -------- SEQUENCES -------- 
 -- CREATE SEQUENCE: Creates a new sequence, which can be used for generating sequential, unique numbers.
 */

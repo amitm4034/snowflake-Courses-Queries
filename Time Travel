@@ -1,0 +1,108 @@
+/*
+What is TIME TRAVEL and how it is used in SNOWFLAKE?
+-- Snowflake Time Travel enables accessing historical data (i.e. data that has been changed or deleted) at any point within a defined period. 
+-- It serves as a powerful tool for performing the following tasks:
+    - Restoring data-related objects (tables, schemas, and databases) that may have been accidentally or intentionally deleted.
+    - Duplicating and backing up data from key points in the past.
+    - Analyzing data usage/manipulation over specified periods of time.
+*/
+
+-- SET DATA_RETENTION_TIME_IN_DAYS PROPERTY FOR TIME TRAVEL
+
+create or replace table employees(employee_id number,
+                     salary number,
+                     manager_id number)
+                   data_retention_time_in_days=90;
+                    
+--Change Retention Period days           
+alter table employees set data_retention_time_in_days=30;
+
+
+
+-- If retention period is changed for account or individual objects then retention period will be changed for all 
+lower level objects as well unless explicitly set
+
+USE SCHEMA EMPLOYEE_PERM;
+
+create or replace table employees_new(employee_id number,
+                     salary number,
+                     manager_id number)
+                   data_retention_time_in_days=90;
+                     
+insert into employees values(8,40000,4),
+                                 (12,50000,9),
+                                 (3,30000,5),
+                                 (4,10000,5),
+                                 (25,35000,9),
+                                 (12,50000,9),
+                                 (86,90000,4),
+                                 (73,20000,1);
+                     
+
+SELECT * FROM DEMO_DB.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'EMPLOYEE_PERM';
+
+ALTER SCHEMA DEMO_DB.EMPLOYEE_PERM set data_retention_time_in_days=55;
+
+SELECT * FROM DEMO_DB.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'EMPLOYEE_PERM';
+
+-- CLONE HISTORICAL OBJECTS
+
+-- create a duplicate of the object at a specified point in the object’s history
+
+select current_timestamp();
+
+
+-- following CREATE TABLE command creates a clone of a table as of the date and time represented by the specified timestamp:
+create table restored_table clone employees
+  at(timestamp => '2020-09-10 21:06:16.694 +0000'::timestamp);
+  
+-- following CREATE SCHEMA command creates a clone of a schema and all its objects as they existed 1 hour before the current time:
+create schema restored_schema clone employee_perm at(offset => -600);
+
+-- following CREATE DATABASE command creates a clone of a database and all its objects as they existed prior to the completion of the specified statement:
+create database restored_db clone demo_db
+  before(statement => '0196d7b8-00d6-37a7-0000-45750002d1ce');
+  
+  
+-- DROPPING AND RESTORING OBJECTS --
+
+When a table, schema, or database is dropped, it is not immediately overwritten or removed from the system. 
+Instead, it is retained for the data retention period for the object, during which time the object can be restored. 
+Once dropped objects are moved to Fail-safe, you cannot restore them.
+
+*/
+
+show tables history like 'employees%' in demo_db.public;
+
+show schemas history in demo_db;
+
+show databases history;
+
+drop database development;
+
+drop schema demo_db.employee;
+
+drop table demo_db.employee_perm.employees;
+
+-- The output includes all dropped objects and an additional DROPPED_ON column, which displays the date and time when the object was dropped. 
+-- If an object has been dropped more than once, each version of the object is included as a separate row in the output.
+
+
+/*
+
+-- RESTORING OBJECTS --
+A dropped object that has not been purged from the system (i.e. the object is displayed in the SHOW <object_type> HISTORY output) 
+can be restored using the following commands:
+
+Calling UNDROP restores the object to its most recent state before the DROP command was issued.
+
+*/
+
+undrop table demo_db.employee_perm.employees;   ---restore table
+
+undrop schema demo_db.employee;  ---restore schema
+
+undrop database development;   ---restore database
+
+-- If an object with the same name already exists, UNDROP fails. 
+-- You must rename the existing object, which then enables you to restore the previous version of the object.
